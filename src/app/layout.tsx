@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 
+// Firebase はクライアントのみで動作するため、ビルド時の静的生成を無効化
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Stocky',
   description: '家族の冷蔵庫・ストックをリアルタイム共有',

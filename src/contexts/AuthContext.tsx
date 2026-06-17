@@ -10,7 +10,6 @@ import {
 } from 'firebase/auth'
 import {
   doc,
-  getDoc,
   setDoc,
   onSnapshot,
 } from 'firebase/firestore'
@@ -36,10 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let unsubUser: (() => void) | null = null
     let cancelled = false
-    const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
+
+    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
       if (cancelled) return
       setFirebaseUser(fbUser)
+
+      if (unsubUser) { unsubUser(); unsubUser = null }
+
       if (!fbUser) {
         setUserDoc(null)
         setHousehold(null)
@@ -48,30 +52,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userRef = doc(db, 'users', fbUser.uid)
-      const userSnap = await getDoc(userRef)
-      if (cancelled) return
-      if (userSnap.exists()) {
-        const data = userSnap.data() as UserDoc
-        setUserDoc(data)
-        if (data.householdId) {
-          const hRef = doc(db, 'households', data.householdId)
-          const hSnap = await getDoc(hRef)
-          if (cancelled) return
-          if (hSnap.exists()) {
-            setHousehold({ id: hSnap.id, ...hSnap.data() } as Household)
-          }
-        }
-      }
-      setLoading(false)
+      unsubUser = onSnapshot(userRef, (snap) => {
+        if (cancelled) return
+        setUserDoc(snap.exists() ? (snap.data() as UserDoc) : null)
+        setLoading(false)
+      })
     })
+
     return () => {
       cancelled = true
       unsubAuth()
+      if (unsubUser) unsubUser()
     }
   }, [])
 
   useEffect(() => {
-    if (!userDoc?.householdId) return
+    if (!userDoc?.householdId) {
+      setHousehold(null)
+      return
+    }
     const hRef = doc(db, 'households', userDoc.householdId)
     const unsub = onSnapshot(hRef, (snap) => {
       if (snap.exists()) {
@@ -92,7 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       name,
     })
-    setUserDoc({ uid: cred.user.uid, email, name })
   }
 
   const signOut = async () => {

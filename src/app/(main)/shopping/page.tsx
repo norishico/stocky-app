@@ -56,7 +56,8 @@ export default function ShoppingPage() {
         checked: false,
       })
     } catch {
-      // ignore
+      setNewItemName(name)
+      showToast('追加に失敗しました')
     }
   }
 
@@ -68,6 +69,7 @@ export default function ShoppingPage() {
 
   const handleToggle = async (item: ShoppingListItem) => {
     if (!household?.id) return
+    if (item.itemId && !/^[a-zA-Z0-9_-]{1,128}$/.test(item.itemId)) return
     try {
       if (!item.checked) {
         if (item.itemId) {
@@ -86,7 +88,7 @@ export default function ShoppingPage() {
         })
       }
     } catch {
-      // ignore
+      showToast('更新に失敗しました')
     }
   }
 
@@ -95,7 +97,7 @@ export default function ShoppingPage() {
     try {
       await deleteDoc(doc(db, 'households', household.id, 'shoppingList', item.id))
     } catch {
-      // ignore
+      showToast('削除に失敗しました')
     }
   }
 
@@ -106,7 +108,7 @@ export default function ShoppingPage() {
         checked.map((item) => deleteDoc(doc(db, 'households', household.id, 'shoppingList', item.id)))
       )
     } catch {
-      // ignore
+      showToast('クリアに失敗しました')
     }
   }
 
@@ -242,21 +244,21 @@ function ShoppingItem({
     <div className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 transition-opacity ${checked ? 'opacity-50' : ''}`}>
       <button
         onClick={() => onCheck(item)}
-        className={`w-8 h-8 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+        className={`w-11 h-11 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
           checked
             ? 'bg-forest-500 border-forest-500 text-white'
             : 'border-stone-200 hover:border-forest-400'
         }`}
         aria-label="購入済みにする"
       >
-        {checked && <Check size={14} weight="bold" />}
+        {checked && <Check size={16} weight="bold" />}
       </button>
       <span className={`flex-1 font-medium text-stone-900 ${checked ? 'line-through text-stone-400' : ''}`}>
         {item.name}
       </span>
       <button
         onClick={() => onDelete(item)}
-        className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+        className="flex-shrink-0 w-11 h-11 flex items-center justify-center text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
         aria-label="リストから削除"
       >
         <X size={16} weight="bold" />

@@ -22,6 +22,10 @@ service cloud.firestore {
           && request.resource.data.members is list
           && request.resource.data.members.size() >= 1;
       }
+      // householdId はUUIDのため推測不可。招待参加者が参加前にgetDocできるよう
+      // allow read は request.auth != null（認証済み全員）にしている（isMember()より広い）。
+      // サブコレクション（items/shoppingList）は引き続き isMemberOfHousehold() で保護。
+
       // 招待リンク経由の参加: 自分のUIDだけをmembersに追加、他フィールド変更不可
       function isJoiningOwn() {
         return request.auth != null
@@ -64,8 +68,18 @@ service cloud.firestore {
           return request.auth != null &&
             request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
         }
+        function validShoppingListData() {
+          return request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 100
+            && request.resource.data.checked is bool
+            && (request.resource.data.itemId == null || request.resource.data.itemId is string)
+            && request.resource.data.addedBy == request.auth.uid;
+        }
 
-        allow read, write: if isMemberOfHousehold();
+        allow read: if isMemberOfHousehold();
+        allow create: if isMemberOfHousehold() && validShoppingListData();
+        allow update, delete: if isMemberOfHousehold();
       }
     }
   }

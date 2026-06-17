@@ -1,9 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser'
-import { DecodeHintType, BarcodeFormat } from '@zxing/library'
 import { X } from '@phosphor-icons/react'
+import { setZXingModuleOverrides, readBarcodesFromImageData, type ReadInputBarcodeFormat } from 'zxing-wasm/reader'
+
+setZXingModuleOverrides({
+  locateFile: (path: string) => `/${path}`,
+})
+
+const READER_FORMATS: ReadInputBarcodeFormat[] = ['EAN13', 'EAN8', 'UPCA', 'UPCE', 'Code128']
+const READER_OPTIONS = { formats: READER_FORMATS, tryHarder: true }
 
 interface Props {
   onResult: (text: string) => void
@@ -12,14 +18,22 @@ interface Props {
 
 export function Scanner({ onResult, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const controlsRef = useRef<IScannerControls | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const resultHandled = useRef(false)
+  const scanning = useRef(false)
 
   const stopAll = useCallback(() => {
-    controlsRef.current?.stop()
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-      tracks.forEach((t) => t.stop())
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
       videoRef.current.srcObject = null
     }
   }, [])
@@ -35,36 +49,49 @@ export function Scanner({ onResult, onClose }: Props) {
   )
 
   useEffect(() => {
-    if (!videoRef.current) return
-    const hints = new Map<DecodeHintType, unknown>()
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-      BarcodeFormat.EAN_13,
-      BarcodeFormat.EAN_8,
-      BarcodeFormat.UPC_A,
-      BarcodeFormat.UPC_E,
-      BarcodeFormat.CODE_128,
-    ])
-    hints.set(DecodeHintType.TRY_HARDER, true)
-    const reader = new BrowserMultiFormatReader(hints)
     let mounted = true
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
 
     const start = async () => {
       try {
-        const controls = await reader.decodeFromConstraints(
-          {
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-            },
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
-          videoRef.current!,
-          (result) => {
-            if (!mounted) return
-            if (result) handleResult(result.getText())
-          },
-        )
-        if (mounted) controlsRef.current = controls
+        })
+        if (!mounted) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
+        streamRef.current = stream
+        video.srcObject = stream
+        await video.play()
+
+        intervalRef.current = setInterval(async () => {
+          if (!mounted || resultHandled.current || scanning.current) return
+          if (video.readyState < 2 || video.videoWidth === 0) return
+          scanning.current = true
+          try {
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            ctx.drawImage(video, 0, 0)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const results = await readBarcodesFromImageData(imageData, READER_OPTIONS)
+            if (results.length > 0 && mounted && !resultHandled.current) {
+              handleResult(results[0].text)
+            }
+          } catch {
+            // ignore decode errors
+          } finally {
+            scanning.current = false
+          }
+        }, 200)
       } catch (err: unknown) {
         const name = (err as { name?: string })?.name
         if (name !== 'NotFoundError' && name !== 'NotFoundException') {
@@ -99,8 +126,8 @@ export function Scanner({ onResult, onClose }: Props) {
           className="w-full h-full object-cover"
           playsInline
           muted
-          autoPlay
         />
+        <canvas ref={canvasRef} className="hidden" />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="relative w-64 h-44">
             <div className="absolute inset-0 rounded-2xl border-2 border-white/30" />

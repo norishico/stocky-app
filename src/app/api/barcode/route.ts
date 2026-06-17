@@ -28,16 +28,35 @@ async function fetchRakuten(janCode: string): Promise<ProductInfo | null> {
 
 async function fetchOpenFoodFacts(janCode: string): Promise<ProductInfo | null> {
   try {
-    const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(janCode)}?fields=product_name,brands,image_url`
+    const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(janCode)}?fields=product_name,product_name_ja,brands,image_url`
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
     if (!res.ok) return null
     const data = await res.json()
     const p = data?.product
-    if (!p?.product_name) return null
+    const name = p?.product_name_ja || p?.product_name
+    if (!name) return null
     return {
-      name: p.product_name,
+      name,
       brand: p.brands?.split(',')[0]?.trim() ?? undefined,
       imageUrl: p.image_url ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function fetchUPCItemDB(janCode: string): Promise<ProductInfo | null> {
+  try {
+    const url = `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(janCode)}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const item = data?.items?.[0]
+    if (!item?.title) return null
+    return {
+      name: item.title,
+      brand: item.brand ?? undefined,
+      imageUrl: item.images?.[0] ?? undefined,
     }
   } catch {
     return null
@@ -57,7 +76,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'invalid barcode format' }, { status: 400 })
   }
 
-  const result = (await fetchRakuten(code)) ?? (await fetchOpenFoodFacts(code))
+  const result = (await fetchRakuten(code)) ?? (await fetchOpenFoodFacts(code)) ?? (await fetchUPCItemDB(code))
   if (!result) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
   return NextResponse.json(result)

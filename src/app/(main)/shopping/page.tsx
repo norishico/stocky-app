@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ShoppingListItem } from '@/lib/types'
 import { ShoppingCart, Check, X, CheckCircle, Plus, Trash } from '@phosphor-icons/react'
+import { useRef } from 'react'
 
 export default function ShoppingPage() {
   const { household, firebaseUser } = useAuth()
@@ -23,6 +24,11 @@ export default function ShoppingPage() {
   const [loading, setLoading] = useState(true)
   const [newItemName, setNewItemName] = useState('')
   const [toast, setToast] = useState('')
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
+  }, [])
 
   useEffect(() => {
     if (!household?.id) return
@@ -56,24 +62,29 @@ export default function ShoppingPage() {
   }
 
   const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast(msg)
-    setTimeout(() => setToast(''), 2500)
+    toastTimer.current = setTimeout(() => setToast(''), 2500)
   }
 
-  const handleCheck = async (item: ShoppingListItem) => {
+  const handleToggle = async (item: ShoppingListItem) => {
     if (!household?.id) return
     try {
-      if (item.itemId) {
-        await updateDoc(doc(db, 'households', household.id, 'items', item.itemId), {
-          status: '○',
-          updatedAt: serverTimestamp(),
+      if (!item.checked) {
+        if (item.itemId) {
+          await updateDoc(doc(db, 'households', household.id, 'items', item.itemId), {
+            status: '○',
+            updatedAt: serverTimestamp(),
+          })
+          showToast(`「${item.name}」の在庫を「十分あり」に更新しました`)
+        }
+        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
+          checked: true,
         })
-      }
-      await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
-        checked: true,
-      })
-      if (item.itemId) {
-        showToast(`「${item.name}」の在庫を「十分あり」に更新しました`)
+      } else {
+        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
+          checked: false,
+        })
       }
     } catch {
       // ignore
@@ -189,7 +200,7 @@ export default function ShoppingPage() {
           ) : (
             <div className="space-y-2.5">
               {unchecked.map((item) => (
-                <ShoppingItem key={item.id} item={item} onCheck={handleCheck} onDelete={handleDelete} />
+                <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} />
               ))}
               {checked.length > 0 && (
                 <>
@@ -204,7 +215,7 @@ export default function ShoppingPage() {
                     </button>
                   </div>
                   {checked.map((item) => (
-                    <ShoppingItem key={item.id} item={item} onCheck={handleCheck} onDelete={handleDelete} checked />
+                    <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} checked />
                   ))}
                 </>
               )}

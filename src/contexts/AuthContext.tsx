@@ -12,14 +12,18 @@ import {
   doc,
   setDoc,
   onSnapshot,
+  collection,
+  query,
+  where,
 } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
-import { UserDoc, Household } from '@/lib/types'
+import { UserDoc, Household, Item } from '@/lib/types'
 
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null
   userDoc: UserDoc | null
   household: Household | null
+  expiringItems: Item[]
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, name: string) => Promise<void>
@@ -32,8 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
   const [userDoc, setUserDoc] = useState<UserDoc | null>(null)
   const [household, setHousehold] = useState<Household | null>(null)
+  const [expiringItems, setExpiringItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Auth state → user doc (onSnapshot for reactivity)
   useEffect(() => {
     let unsubUser: (() => void) | null = null
     let cancelled = false
@@ -47,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!fbUser) {
         setUserDoc(null)
         setHousehold(null)
+        setExpiringItems([])
         setLoading(false)
         return
       }
@@ -66,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // userDoc.householdId → household (onSnapshot)
   useEffect(() => {
     if (!userDoc?.householdId) {
       setHousehold(null)
@@ -76,6 +84,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (snap.exists()) {
         setHousehold({ id: snap.id, ...snap.data() } as Household)
       }
+    })
+    return () => unsub()
+  }, [userDoc?.householdId])
+
+  // userDoc.householdId → expiring food items (shared, avoids duplicate listeners)
+  useEffect(() => {
+    if (!userDoc?.householdId) {
+      setExpiringItems([])
+      return
+    }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const limitDate = new Date(today)
+    limitDate.setDate(today.getDate() + 3)
+    const limitStr = limitDate.toISOString().split('T')[0]
+
+    const q = query(
+      collection(db, 'households', userDoc.householdId, 'items'),
+      where('category', '==', 'food'),
+      where('expiryDate', '<=', limitStr),
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      setExpiringItems(
+        snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Item))
+          .filter(item => !!item.expiryDate)
+          .sort((a, b) => (a.expiryDate! > b.expiryDate! ? 1 : -1))
+      )
     })
     return () => unsub()
   }, [userDoc?.householdId])
@@ -97,10 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(auth)
     setUserDoc(null)
     setHousehold(null)
+    setExpiringItems([])
   }
 
   return (
-    <AuthContext.Provider value={{ firebaseUser, userDoc, household, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ firebaseUser, userDoc, household, expiringItems, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   )

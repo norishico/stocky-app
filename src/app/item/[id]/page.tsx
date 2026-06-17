@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
   doc,
-  getDoc,
+  onSnapshot,
   updateDoc,
   deleteDoc,
   setDoc,
@@ -52,25 +52,27 @@ export default function ItemDetailPage() {
   const [storageLocation, setStorageLocation] = useState<StorageLocation>('冷蔵')
   const [memo, setMemo] = useState('')
 
+  // リアルタイム更新：itemステートのみ更新（フォーム値は別effectで管理）
   useEffect(() => {
     if (!household?.id) return
-    const fetchItem = async () => {
-      const snap = await getDoc(doc(db, 'households', household.id, 'items', id))
-      if (snap.exists()) {
-        const data = { id: snap.id, ...snap.data() } as Item
-        setItem(data)
-        setName(data.name)
-        setBrand(data.brand ?? '')
-        setStatus(data.status)
-        setExpiryDate(data.expiryDate ?? '')
-        setExpiryType(data.expiryType ?? '賞味')
-        setStorageLocation(data.storageLocation ?? '冷蔵')
-        setMemo(data.memo ?? '')
-      }
+    const unsub = onSnapshot(doc(db, 'households', household.id, 'items', id), (snap) => {
+      if (snap.exists()) setItem({ id: snap.id, ...snap.data() } as Item)
       setLoading(false)
-    }
-    fetchItem()
+    })
+    return () => unsub()
   }, [household?.id, id])
+
+  // 表示モード時 or itemが更新されたときにフォーム値をリセット（キャンセル対応も兼ねる）
+  useEffect(() => {
+    if (!item || editing) return
+    setName(item.name)
+    setBrand(item.brand ?? '')
+    setStatus(item.status)
+    setExpiryDate(item.expiryDate ?? '')
+    setExpiryType(item.expiryType ?? '賞味')
+    setStorageLocation(item.storageLocation ?? '冷蔵')
+    setMemo(item.memo ?? '')
+  }, [item, editing])
 
   const handleStatusChange = async (newStatus: ItemStatus) => {
     if (!household?.id || !item) return
@@ -216,7 +218,7 @@ export default function ItemDetailPage() {
         {editing ? (
           <button
             onClick={() => { setEditing(false); setError('') }}
-            className="text-sm font-medium px-3 py-1.5 rounded-xl text-stone-500 hover:bg-stone-100 transition-colors"
+            className="text-sm font-medium px-3 py-1.5 rounded-xl text-red-400 hover:bg-red-50 transition-colors"
           >
             キャンセル
           </button>

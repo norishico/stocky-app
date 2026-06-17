@@ -1,44 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { collection, onSnapshot, query, where } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { Item } from '@/lib/types'
 import { X, Clock } from '@phosphor-icons/react'
 
 export function ExpiryAlert() {
-  const { household } = useAuth()
-  const [alerts, setAlerts] = useState<Item[]>([])
+  const { expiringItems } = useAuth()
   const [dismissed, setDismissed] = useState(false)
 
-  useEffect(() => {
-    if (!household?.id) return
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const threeDaysLater = new Date(today)
-    threeDaysLater.setDate(today.getDate() + 3)
-
-    const limitStr = threeDaysLater.toISOString().split('T')[0]
-
-    const q = query(
-      collection(db, 'households', household.id, 'items'),
-      where('category', '==', 'food'),
-      where('expiryDate', '<=', limitStr),
-    )
-
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as Item))
-        .filter((item) => !!item.expiryDate)
-        .sort((a, b) => (a.expiryDate! > b.expiryDate! ? 1 : -1))
-      setAlerts(items)
-      setDismissed(false)
-    })
-    return () => unsub()
-  }, [household?.id])
-
-  if (!alerts.length || dismissed) return null
+  if (!expiringItems.length || dismissed) return null
 
   const todayStr = new Date().toISOString().split('T')[0]
 
@@ -51,7 +21,7 @@ export function ExpiryAlert() {
             期限まもなくの食品
           </p>
           <ul className="space-y-0.5">
-            {alerts.map((item) => {
+            {expiringItems.map((item) => {
               const isExpired = item.expiryDate! < todayStr
               const isToday = item.expiryDate === todayStr
               return (

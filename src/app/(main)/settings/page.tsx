@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const { household, userDoc, signOut } = useAuth()
   const [copied, setCopied] = useState(false)
   const [inviteUrl, setInviteUrl] = useState('')
+  const [showFallback, setShowFallback] = useState(false)
 
   useEffect(() => {
     if (household) {
@@ -17,9 +18,15 @@ export default function SettingsPage() {
 
   const handleCopy = async () => {
     if (!inviteUrl) return
-    await navigator.clipboard.writeText(inviteUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+      setShowFallback(false)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard API非対応のブラウザはURLを表示して手動コピー
+      setShowFallback(true)
+    }
   }
 
   return (
@@ -44,6 +51,7 @@ export default function SettingsPage() {
 
         <p className="text-sm font-medium text-stone-700 mb-1">招待リンク</p>
         <p className="text-xs text-stone-400 mb-3">このリンクを共有するとグループに参加できます</p>
+
         <button
           onClick={handleCopy}
           disabled={!inviteUrl}
@@ -56,6 +64,19 @@ export default function SettingsPage() {
           {copied ? <Check size={16} weight="bold" /> : <Copy size={16} weight="bold" />}
           {copied ? 'コピーしました！' : '招待リンクをコピー'}
         </button>
+
+        {/* クリップボードAPI非対応時のフォールバック */}
+        {showFallback && (
+          <div className="mt-3">
+            <p className="text-xs text-stone-500 mb-1.5">下のURLを長押しでコピーしてください</p>
+            <input
+              readOnly
+              value={inviteUrl}
+              onFocus={(e) => e.target.select()}
+              className="w-full text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-forest-500"
+            />
+          </div>
+        )}
       </div>
 
       {/* アカウント */}

@@ -13,6 +13,8 @@ const tabs = [
 
 export function BottomNav() {
   const pathname = usePathname()
+  const addHref = pathname === '/goods' ? '/add?category=goods' : '/add'
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-stone-100 pb-safe">
       <div className="flex items-center max-w-md mx-auto">
@@ -35,7 +37,7 @@ export function BottomNav() {
           )
         })}
         <Link
-          href="/add"
+          href={addHref}
           className="flex flex-col items-center gap-1 py-3 flex-1 min-h-[56px] justify-center text-forest-500"
         >
           <span className="w-11 h-11 flex items-center justify-center bg-forest-500 text-white rounded-full shadow-md">

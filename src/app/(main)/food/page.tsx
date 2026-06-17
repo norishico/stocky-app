@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { useEffect, useState, useRef } from 'react'
+import { collection, onSnapshot, query, where, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Item } from '@/lib/types'
@@ -11,9 +11,15 @@ import { Leaf } from '@phosphor-icons/react'
 const STATUS_ORDER = { '×': 0, '△': 1, '○': 2 }
 
 export default function FoodPage() {
-  const { household } = useAuth()
+  const { household, firebaseUser } = useAuth()
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState('')
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
+  }, [])
 
   useEffect(() => {
     if (!household?.id) return
@@ -31,12 +37,40 @@ export default function FoodPage() {
     return () => unsub()
   }, [household?.id])
 
+  const handleAddToCart = async (item: Item) => {
+    if (!household?.id || !firebaseUser) return
+    try {
+      await addDoc(collection(db, 'households', household.id, 'shoppingList'), {
+        itemId: item.id,
+        name: item.name,
+        imageUrl: item.imageUrl ?? null,
+        addedAt: serverTimestamp(),
+        addedBy: firebaseUser.uid,
+        checked: false,
+      })
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+      setToast(`「${item.name}」を買い物リストに追加しました`)
+      toastTimer.current = setTimeout(() => setToast(''), 2500)
+    } catch {
+      // ignore
+    }
+  }
+
   const outCount  = items.filter((i) => i.status === '×').length
   const lowCount  = items.filter((i) => i.status === '△').length
   const fullCount = items.filter((i) => i.status === '○').length
 
   return (
     <div className="px-4 pt-4">
+      {/* トースト通知 */}
+      <div className={`fixed top-4 inset-x-4 mx-auto max-w-sm z-[100] transition-all duration-300 ${
+        toast ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
+      }`}>
+        <div className="bg-stone-800/90 backdrop-blur-sm text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg text-center">
+          {toast}
+        </div>
+      </div>
+
       {/* ヘッダー */}
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-xl font-bold text-stone-900 flex items-center gap-2">
@@ -87,7 +121,7 @@ export default function FoodPage() {
       ) : (
         <div className="space-y-2.5">
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <ItemCard key={item.id} item={item} onAddToCart={handleAddToCart} />
           ))}
         </div>
       )}

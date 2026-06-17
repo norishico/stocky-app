@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser'
+import { DecodeHintType, BarcodeFormat } from '@zxing/library'
 import { X } from '@phosphor-icons/react'
 
 interface Props {
@@ -35,13 +36,28 @@ export function Scanner({ onResult, onClose }: Props) {
 
   useEffect(() => {
     if (!videoRef.current) return
-    const reader = new BrowserMultiFormatReader()
+    const hints = new Map<DecodeHintType, unknown>()
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128,
+    ])
+    hints.set(DecodeHintType.TRY_HARDER, true)
+    const reader = new BrowserMultiFormatReader(hints)
     let mounted = true
 
     const start = async () => {
       try {
         const controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' } } },
+          {
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+          },
           videoRef.current!,
           (result) => {
             if (!mounted) return
@@ -86,7 +102,7 @@ export function Scanner({ onResult, onClose }: Props) {
           autoPlay
         />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="relative w-56 h-40">
+          <div className="relative w-64 h-44">
             <div className="absolute inset-0 rounded-2xl border-2 border-white/30" />
             <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-xl" />
             <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-xl" />

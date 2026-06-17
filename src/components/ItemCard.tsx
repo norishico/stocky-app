@@ -1,8 +1,10 @@
-import Link from 'next/link'
+'use client'
+
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Item, ItemStatus } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
-import { Leaf, Package } from '@phosphor-icons/react'
+import { Leaf, Package, ShoppingCart } from '@phosphor-icons/react'
 
 const STATUS_CARD: Record<ItemStatus, string> = {
   '○': 'bg-white',
@@ -32,41 +34,58 @@ function formatExpiry(expiryDate?: string, expiryType?: string) {
   return { text: `${label}：${expiryDate}`, color: 'text-stone-400' }
 }
 
-export function ItemCard({ item }: { item: Item }) {
+export function ItemCard({
+  item,
+  onAddToCart,
+}: {
+  item: Item
+  onAddToCart?: (item: Item) => void
+}) {
+  const router = useRouter()
   const expiry = formatExpiry(item.expiryDate, item.expiryType)
   const borderColor = getExpiryBorder(item.expiryDate)
   const cardBg = STATUS_CARD[item.status]
 
   return (
-    <Link href={`/item/${item.id}`}>
-      <div className={`rounded-2xl shadow-sm p-3.5 flex items-center gap-3 active:scale-[0.98] transition-transform ${cardBg} ${borderColor}`}>
-        {item.imageUrl ? (
-          <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-stone-100">
-            <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="w-full h-full object-cover" />
-          </div>
-        ) : (
-          <div className={`w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center ${
-            item.category === 'food' ? 'bg-forest-50 text-forest-400' : 'bg-stone-100 text-stone-400'
-          }`}>
-            {item.category === 'food'
-              ? <Leaf size={28} weight="duotone" />
-              : <Package size={28} weight="duotone" />
-            }
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-stone-900 truncate">{item.name}</p>
-          {item.brand && <p className="text-xs text-stone-400 truncate">{item.brand}</p>}
-          {expiry ? (
-            <p className={`text-xs mt-0.5 font-medium ${expiry.color}`}>{expiry.text}</p>
-          ) : item.storageLocation ? (
-            <p className="text-xs text-stone-400">{item.storageLocation}</p>
-          ) : null}
+    <div
+      onClick={() => router.push(`/item/${item.id}`)}
+      className={`rounded-2xl shadow-sm p-3.5 flex items-center gap-3 active:scale-[0.98] transition-transform cursor-pointer ${cardBg} ${borderColor}`}
+    >
+      {item.imageUrl ? (
+        <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-stone-100">
+          <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="w-full h-full object-cover" />
         </div>
-        <div className="flex-shrink-0">
-          <StatusBadge status={item.status} size="sm" />
+      ) : (
+        <div className={`w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center ${
+          item.category === 'food' ? 'bg-forest-50 text-forest-400' : 'bg-stone-100 text-stone-400'
+        }`}>
+          {item.category === 'food'
+            ? <Leaf size={28} weight="duotone" />
+            : <Package size={28} weight="duotone" />
+          }
         </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-stone-900 truncate">{item.name}</p>
+        {item.brand && <p className="text-xs text-stone-400 truncate">{item.brand}</p>}
+        {expiry ? (
+          <p className={`text-xs mt-0.5 font-medium ${expiry.color}`}>{expiry.text}</p>
+        ) : item.storageLocation ? (
+          <p className="text-xs text-stone-400">{item.storageLocation}</p>
+        ) : null}
       </div>
-    </Link>
+      <div className="flex-shrink-0 flex items-center gap-1.5">
+        <StatusBadge status={item.status} size="sm" />
+        {onAddToCart && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddToCart(item) }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-300 hover:text-forest-500 active:text-forest-500 active:bg-forest-50 transition-colors"
+            aria-label="買い物リストに追加"
+          >
+            <ShoppingCart size={17} weight="bold" />
+          </button>
+        )}
+      </div>
+    </div>
   )
 }

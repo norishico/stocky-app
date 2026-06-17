@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   collection,
   onSnapshot,
@@ -16,7 +16,6 @@ import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ShoppingListItem } from '@/lib/types'
 import { ShoppingCart, Check, X, CheckCircle, Plus, Trash } from '@phosphor-icons/react'
-import { useRef } from 'react'
 
 export default function ShoppingPage() {
   const { household, firebaseUser } = useAuth()
@@ -181,31 +180,32 @@ export default function ShoppingPage() {
             </div>
           </div>
 
-          {/* 全完了ステート */}
-          {allDone ? (
-            <div className="flex flex-col items-center py-10 text-center">
-              <div className="w-20 h-20 bg-forest-50 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle size={44} weight="fill" className="text-forest-500" />
+          {/* 全完了バナー（アイテムは下に残す） */}
+          {allDone && (
+            <div className="flex items-center justify-between bg-forest-50 border border-forest-200 rounded-2xl px-4 py-3 mb-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={20} weight="fill" className="text-forest-500 flex-shrink-0" />
+                <span className="text-sm font-semibold text-forest-700">お買い物完了！</span>
               </div>
-              <p className="font-bold text-stone-800 text-xl">お買い物完了！</p>
-              <p className="text-sm text-stone-400 mt-1">すべての商品を購入しました</p>
               <button
                 onClick={handleClearChecked}
-                className="mt-6 flex items-center gap-1.5 text-sm text-stone-400 hover:text-red-400 transition-colors"
+                className="flex items-center gap-1 text-xs text-stone-400 hover:text-red-400 transition-colors"
               >
-                <Trash size={14} />
-                リストをクリア
+                <Trash size={11} />
+                クリア
               </button>
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              {unchecked.map((item) => (
-                <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} />
-              ))}
-              {checked.length > 0 && (
-                <>
-                  <div className="flex items-center justify-between pt-2 px-1">
-                    <p className="text-xs font-medium text-stone-400">購入済み</p>
+          )}
+
+          <div className="space-y-2.5">
+            {unchecked.map((item) => (
+              <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} />
+            ))}
+            {checked.length > 0 && (
+              <>
+                <div className="flex items-center justify-between pt-2 px-1">
+                  <p className="text-xs font-medium text-stone-400">購入済み</p>
+                  {!allDone && (
                     <button
                       onClick={handleClearChecked}
                       className="text-xs text-stone-300 hover:text-red-400 transition-colors flex items-center gap-1"
@@ -213,14 +213,14 @@ export default function ShoppingPage() {
                       <Trash size={11} />
                       クリア
                     </button>
-                  </div>
-                  {checked.map((item) => (
-                    <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} checked />
-                  ))}
-                </>
-              )}
-            </div>
-          )}
+                  )}
+                </div>
+                {checked.map((item) => (
+                  <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} checked />
+                ))}
+              </>
+            )}
+          </div>
         </>
       )}
     </div>

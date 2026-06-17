@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Leaf, Package, ShoppingCart, Plus } from '@phosphor-icons/react'
+import { Leaf, Package, ShoppingCart, Plus, GearSix } from '@phosphor-icons/react'
 
 const tabs = [
   { href: '/food',     label: '食品',   Icon: Leaf         },
   { href: '/goods',    label: '日用品',  Icon: Package      },
   { href: '/shopping', label: '買い物',  Icon: ShoppingCart },
+  { href: '/settings', label: '設定',    Icon: GearSix      },
 ]
 
 export function BottomNav() {

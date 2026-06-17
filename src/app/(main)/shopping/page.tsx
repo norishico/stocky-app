@@ -9,17 +9,19 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  addDoc,
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ShoppingListItem } from '@/lib/types'
-import { ShoppingCart, Check, X, CheckCircle } from '@phosphor-icons/react'
+import { ShoppingCart, Check, X, CheckCircle, Plus, Trash } from '@phosphor-icons/react'
 
 export default function ShoppingPage() {
-  const { household } = useAuth()
+  const { household, firebaseUser } = useAuth()
   const [items, setItems] = useState<ShoppingListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [newItemName, setNewItemName] = useState('')
 
   useEffect(() => {
     if (!household?.id) return
@@ -34,20 +36,38 @@ export default function ShoppingPage() {
     return () => unsub()
   }, [household?.id])
 
+  const handleAddDirect = async () => {
+    if (!household?.id || !firebaseUser || !newItemName.trim()) return
+    const name = newItemName.trim()
+    setNewItemName('')
+    try {
+      await addDoc(collection(db, 'households', household.id, 'shoppingList'), {
+        itemId: null,
+        name,
+        imageUrl: null,
+        addedAt: serverTimestamp(),
+        addedBy: firebaseUser.uid,
+        checked: false,
+      })
+    } catch {
+      // ignore
+    }
+  }
+
   const handleCheck = async (item: ShoppingListItem) => {
     if (!household?.id) return
     try {
-      await updateDoc(doc(db, 'households', household.id, 'items', item.itemId), {
-        status: '○',
-        quantity: null,
-        updatedAt: serverTimestamp(),
-      })
-      // 削除せず checked: true にする — 購入済みセクションに移動し、完了状態を検知できる
+      if (item.itemId) {
+        await updateDoc(doc(db, 'households', household.id, 'items', item.itemId), {
+          status: '○',
+          updatedAt: serverTimestamp(),
+        })
+      }
       await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
         checked: true,
       })
     } catch {
-      // Firestore のオフラインキューが再試行するため無視
+      // ignore
     }
   }
 
@@ -56,7 +76,18 @@ export default function ShoppingPage() {
     try {
       await deleteDoc(doc(db, 'households', household.id, 'shoppingList', item.id))
     } catch {
-      // 無視
+      // ignore
+    }
+  }
+
+  const handleClearChecked = async () => {
+    if (!household?.id) return
+    try {
+      await Promise.all(
+        checked.map((item) => deleteDoc(doc(db, 'households', household.id, 'shoppingList', item.id)))
+      )
+    } catch {
+      // ignore
     }
   }
 
@@ -74,6 +105,26 @@ export default function ShoppingPage() {
         <span className="text-sm text-stone-400">{unchecked.length}件</span>
       </div>
 
+      {/* 直接追加フォーム */}
+      <div className="bg-white rounded-2xl shadow-sm p-3 mb-4 flex items-center gap-2">
+        <input
+          type="text"
+          value={newItemName}
+          onChange={(e) => setNewItemName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleAddDirect() }}
+          placeholder="アイテムを入力して追加…"
+          className="flex-1 text-base focus:outline-none bg-transparent placeholder:text-stone-300"
+        />
+        <button
+          onClick={handleAddDirect}
+          disabled={!newItemName.trim()}
+          className="w-9 h-9 flex-shrink-0 bg-forest-500 disabled:bg-stone-200 text-white rounded-xl flex items-center justify-center transition-colors"
+          aria-label="追加"
+        >
+          <Plus size={16} weight="bold" />
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-forest-500 border-t-transparent rounded-full animate-spin" />
@@ -84,7 +135,7 @@ export default function ShoppingPage() {
             <ShoppingCart size={40} weight="thin" className="text-stone-300" />
           </div>
           <p className="font-semibold text-stone-600">買い物リストは空です</p>
-          <p className="text-sm text-stone-400 mt-1">アイテム詳細から追加できます</p>
+          <p className="text-sm text-stone-400 mt-1">上の入力欄またはアイテム詳細から追加できます</p>
         </div>
       ) : (
         <>
@@ -110,6 +161,13 @@ export default function ShoppingPage() {
               </div>
               <p className="font-bold text-stone-800 text-xl">お買い物完了！</p>
               <p className="text-sm text-stone-400 mt-1">すべての商品を購入しました</p>
+              <button
+                onClick={handleClearChecked}
+                className="mt-6 flex items-center gap-1.5 text-sm text-stone-400 hover:text-red-400 transition-colors"
+              >
+                <Trash size={14} />
+                リストをクリア
+              </button>
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -118,7 +176,16 @@ export default function ShoppingPage() {
               ))}
               {checked.length > 0 && (
                 <>
-                  <p className="text-xs font-medium text-stone-400 pt-2 px-1">購入済み</p>
+                  <div className="flex items-center justify-between pt-2 px-1">
+                    <p className="text-xs font-medium text-stone-400">購入済み</p>
+                    <button
+                      onClick={handleClearChecked}
+                      className="text-xs text-stone-300 hover:text-red-400 transition-colors flex items-center gap-1"
+                    >
+                      <Trash size={11} />
+                      クリア
+                    </button>
+                  </div>
                   {checked.map((item) => (
                     <ShoppingItem key={item.id} item={item} onCheck={handleCheck} onDelete={handleDelete} checked />
                   ))}

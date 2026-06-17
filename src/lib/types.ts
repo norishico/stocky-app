@@ -22,7 +22,7 @@ export interface Item {
 
 export interface ShoppingListItem {
   id: string
-  itemId: string
+  itemId: string | null
   name: string
   imageUrl?: string
   addedAt: Date

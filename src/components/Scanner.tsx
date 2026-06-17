@@ -38,32 +38,26 @@ export function Scanner({ onResult, onClose }: Props) {
     const reader = new BrowserMultiFormatReader()
     let mounted = true
 
-    // 背面カメラを明示指定
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
-      .then((stream) => {
-        if (!mounted || !videoRef.current) { stream.getTracks().forEach((t) => t.stop()); return }
-        videoRef.current.srcObject = stream
-        videoRef.current.play().catch(() => {})
-      })
-      .catch((err) => {
-        if (err?.name !== 'NotFoundError') console.error('Camera error:', err)
-      })
-
-    reader
-      .decodeFromVideoDevice(undefined, videoRef.current, (result, _err, controls) => {
-        if (!mounted) return
-        controlsRef.current = controls
-        if (result) handleResult(result.getText())
-      })
-      .then((controls) => {
+    const start = async () => {
+      try {
+        const controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } } },
+          videoRef.current!,
+          (result, _err) => {
+            if (!mounted) return
+            if (result) handleResult(result.getText())
+          },
+        )
         if (mounted) controlsRef.current = controls
-      })
-      .catch((err) => {
-        if (err?.name !== 'NotFoundError' && err?.name !== 'NotFoundException') {
-          console.error('Scanner start error:', err)
+      } catch (err: unknown) {
+        const name = (err as { name?: string })?.name
+        if (name !== 'NotFoundError' && name !== 'NotFoundException') {
+          console.error('Scanner error:', err)
         }
-      })
+      }
+    }
+
+    start()
 
     return () => {
       mounted = false

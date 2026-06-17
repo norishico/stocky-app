@@ -43,7 +43,7 @@ export function Scanner({ onResult, onClose }: Props) {
         const controls = await reader.decodeFromConstraints(
           { video: { facingMode: { ideal: 'environment' } } },
           videoRef.current!,
-          (result, _err) => {
+          (result) => {
             if (!mounted) return
             if (result) handleResult(result.getText())
           },

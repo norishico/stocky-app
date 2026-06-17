@@ -36,7 +36,7 @@ service cloud.firestore {
         && isMemberOnCreate()
         && validHouseholdData();
 
-      allow read: if isMember();
+      allow read: if request.auth != null;
       allow update: if (isMember() && request.resource.data.members == resource.data.members)
         || isJoiningOwn();
       allow delete: if false;

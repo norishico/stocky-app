@@ -34,11 +34,15 @@ function SetupContent() {
   useEffect(() => {
     if (!joinId) return
     const fetchHousehold = async () => {
-      const snap = await getDoc(doc(db, 'households', joinId))
-      if (snap.exists()) {
-        setJoinInfo({ name: snap.data().name })
-      } else {
-        setError('招待リンクが無効です')
+      try {
+        const snap = await getDoc(doc(db, 'households', joinId))
+        if (snap.exists()) {
+          setJoinInfo({ name: snap.data().name })
+        } else {
+          setError('招待リンクが無効です')
+        }
+      } catch {
+        setError('招待リンクの読み込みに失敗しました')
       }
     }
     fetchHousehold()
@@ -103,20 +107,28 @@ function SetupContent() {
           <p className="text-stone-400 mt-1 text-sm">グループを作るか、招待URLで参加してください</p>
         </div>
 
-        {joinId && joinInfo ? (
+        {joinId ? (
           <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6">
-            <p className="text-center text-stone-700 mb-2">
-              <span className="font-semibold text-stone-900">「{joinInfo.name}」</span> に招待されています
-            </p>
-            <p className="text-center text-sm text-stone-400 mb-6">このグループに参加しますか？</p>
+            {joinInfo ? (
+              <>
+                <p className="text-center text-stone-700 mb-2">
+                  <span className="font-semibold text-stone-900">「{joinInfo.name}」</span> に招待されています
+                </p>
+                <p className="text-center text-sm text-stone-400 mb-6">このグループに参加しますか？</p>
+              </>
+            ) : !error ? (
+              <p className="text-center text-stone-500 mb-6">招待されたグループに参加する</p>
+            ) : null}
             {error && <p role="alert" className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 mb-4">{error}</p>}
-            <button
-              onClick={handleJoin}
-              disabled={submitting}
-              className="w-full bg-forest-500 hover:bg-forest-600 text-white font-semibold py-3.5 rounded-xl transition-colors disabled:opacity-60"
-            >
-              {submitting ? '参加中…' : 'グループに参加する'}
-            </button>
+            {!error && (
+              <button
+                onClick={handleJoin}
+                disabled={submitting}
+                className="w-full bg-forest-500 hover:bg-forest-600 text-white font-semibold py-3.5 rounded-xl transition-colors disabled:opacity-60"
+              >
+                {submitting ? '参加中…' : 'グループに参加する'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6">

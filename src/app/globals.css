@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Zen+Maru+Gothic:wght@400;700&display=swap');
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: #FAFAF5;
+    color: #1C1917;
+    font-family: 'DM Sans', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  input, textarea, select {
+    font-size: 16px; /* iOS Safari ズーム防止 */
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .min-h-dvh {
+    min-height: 100dvh;
+  }
+  .font-round {
+    font-family: 'Zen Maru Gothic', 'Hiragino Sans', sans-serif;
+  }
+}

@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /households/{householdId} {
+      function isMember() {
+        return request.auth != null &&
+          request.auth.uid in resource.data.members;
+      }
+      function isMemberOnCreate() {
+        return request.auth != null &&
+          request.auth.uid in request.resource.data.members;
+      }
+      function validHouseholdData() {
+        return request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 50
+          && request.resource.data.members is list
+          && request.resource.data.members.size() >= 1;
+      }
+
+      allow create: if request.auth != null
+        && isMemberOnCreate()
+        && validHouseholdData();
+
+      // membersフィールドの変更はルールで禁止（招待はURL共有のみ、参加はCloud Functions経由が理想）
+      allow read: if isMember();
+      allow update: if isMember()
+        && request.resource.data.members == resource.data.members;
+      allow delete: if false; // グループ削除は管理者のみ（将来対応）
+
+      match /items/{itemId} {
+        function isMemberOfHousehold() {
+          return request.auth != null &&
+            request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
+        }
+        function validItemData() {
+          return request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 100
+            && request.resource.data.status in ['○', '△', '×']
+            && request.resource.data.category in ['food', 'goods'];
+        }
+
+        allow read: if isMemberOfHousehold();
+        allow create, update: if isMemberOfHousehold() && validItemData();
+        allow delete: if isMemberOfHousehold();
+      }
+
+      match /shoppingList/{listItemId} {
+        function isMemberOfHousehold() {
+          return request.auth != null &&
+            request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
+        }
+
+        allow read, write: if isMemberOfHousehold();
+      }
+    }
+  }
+}

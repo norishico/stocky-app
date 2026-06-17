@@ -213,14 +213,21 @@ export default function ItemDetailPage() {
           <ArrowLeft size={20} weight="bold" />
         </button>
         <h1 className="font-bold text-stone-900 text-lg truncate max-w-[200px]">{item.name}</h1>
-        <button
-          onClick={() => { setEditing((e) => !e); setError('') }}
-          className={`text-sm font-medium px-3 py-1.5 rounded-xl transition-colors ${
-            editing ? 'text-forest-500 bg-forest-50' : 'text-stone-500 hover:bg-stone-100'
-          }`}
-        >
-          {editing ? '編集中' : '編集'}
-        </button>
+        {editing ? (
+          <button
+            onClick={() => { setEditing(false); setError('') }}
+            className="text-sm font-medium px-3 py-1.5 rounded-xl text-stone-500 hover:bg-stone-100 transition-colors"
+          >
+            キャンセル
+          </button>
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-sm font-medium px-3 py-1.5 rounded-xl text-stone-500 hover:bg-stone-100 transition-colors"
+          >
+            編集
+          </button>
+        )}
       </div>
 
       <div className="px-4 py-5 space-y-5">

@@ -22,6 +22,7 @@ export default function ShoppingPage() {
   const [items, setItems] = useState<ShoppingListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [newItemName, setNewItemName] = useState('')
+  const [toast, setToast] = useState('')
 
   useEffect(() => {
     if (!household?.id) return
@@ -54,6 +55,11 @@ export default function ShoppingPage() {
     }
   }
 
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
+  }
+
   const handleCheck = async (item: ShoppingListItem) => {
     if (!household?.id) return
     try {
@@ -66,6 +72,9 @@ export default function ShoppingPage() {
       await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
         checked: true,
       })
+      if (item.itemId) {
+        showToast(`「${item.name}」の在庫を「十分あり」に更新しました`)
+      }
     } catch {
       // ignore
     }
@@ -97,6 +106,14 @@ export default function ShoppingPage() {
 
   return (
     <div className="px-4 pt-4">
+      {/* トースト通知 */}
+      <div className={`fixed top-4 inset-x-4 mx-auto max-w-sm z-[100] transition-all duration-300 ${
+        toast ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
+      }`}>
+        <div className="bg-stone-800/90 backdrop-blur-sm text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg text-center">
+          {toast}
+        </div>
+      </div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-stone-900 flex items-center gap-2">
           <ShoppingCart size={22} weight="fill" className="text-forest-500" />

@@ -43,6 +43,7 @@ function AddContent() {
   const [fetching, setFetching] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [scanNotFound, setScanNotFound] = useState(false)
 
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
@@ -60,6 +61,7 @@ function AddContent() {
       setShowScanner(false)
       setBarcode(code)
       setFetching(true)
+      setScanNotFound(false)
       try {
         const res = await fetch(`/api/barcode?code=${code}`)
         if (res.ok) {
@@ -67,7 +69,11 @@ function AddContent() {
           if (data.name) setName(data.name)
           if (data.brand) setBrand(data.brand)
           if (data.imageUrl) setImageUrl(data.imageUrl)
+        } else {
+          setScanNotFound(true)
         }
+      } catch {
+        setScanNotFound(true)
       } finally {
         setFetching(false)
       }
@@ -159,6 +165,13 @@ function AddContent() {
           <p className="text-center text-sm text-forest-500 animate-pulse">商品情報を取得中…</p>
         )}
 
+        {scanNotFound && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <p className="text-sm font-semibold text-amber-700">商品情報が見つかりませんでした</p>
+            <p className="text-xs text-amber-600 mt-0.5">商品名を直接入力してください</p>
+          </div>
+        )}
+
         {imageUrl && (
           <div className="flex justify-center">
             <Image src={imageUrl} alt="商品画像" width={80} height={80} className="rounded-xl object-cover" />
@@ -174,7 +187,7 @@ function AddContent() {
             id="itemName"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); setScanNotFound(false) }}
             placeholder="例：牛乳"
             className="w-full border border-stone-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-transparent"
             required

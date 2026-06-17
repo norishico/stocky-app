@@ -18,6 +18,14 @@ export default function LoginPage() {
   useEffect(() => {
     if (loading) return
     if (firebaseUser) {
+      if (!userDoc?.householdId) {
+        const params = new URLSearchParams(window.location.search)
+        const joinId = params.get('join')
+        if (joinId) {
+          router.replace(`/setup?join=${joinId}`)
+          return
+        }
+      }
       router.replace(userDoc?.householdId ? '/food' : '/setup')
     }
   }, [loading, firebaseUser, userDoc, router])

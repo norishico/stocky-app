@@ -27,7 +27,7 @@ function SetupContent() {
 
   useEffect(() => {
     if (loading) return
-    if (!firebaseUser) { router.replace('/login'); return }
+    if (!firebaseUser) { router.replace(joinId ? `/login?join=${joinId}` : '/login'); return }
     if (household) { router.replace('/food'); return }
   }, [loading, firebaseUser, household, router])
 

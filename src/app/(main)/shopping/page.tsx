@@ -11,11 +11,12 @@ import {
   deleteDoc,
   addDoc,
   serverTimestamp,
+  runTransaction,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { ShoppingListItem, ShoppingCategory } from '@/lib/types'
-import { ShoppingCart, Check, X, CheckCircle, Plus, Trash, Leaf, Package } from '@phosphor-icons/react'
+import { ShoppingCart, Check, X, CheckCircle, Plus, Trash, Leaf, Package, Lightning, Flag } from '@phosphor-icons/react'
 
 type FilterType = 'all' | 'food' | 'goods'
 const FILTER_KEY = 'stocky_shopping_filter'
@@ -26,6 +27,7 @@ export default function ShoppingPage() {
   const [loading, setLoading] = useState(true)
   const [newItemName, setNewItemName] = useState('')
   const [directCategory, setDirectCategory] = useState<'food' | 'goods'>('food')
+  const [oneShotAdd, setOneShotAdd] = useState(false)
   const [filter, setFilter] = useState<FilterType>('all')
   const [toast, setToast] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -48,7 +50,12 @@ export default function ShoppingPage() {
     const unsub = onSnapshot(q, (snap) => {
       setItems(snap.docs.map((d) => {
         const data = d.data()
-        return { id: d.id, ...data, category: (data.category ?? 'unknown') as ShoppingCategory } as ShoppingListItem
+        return {
+          id: d.id,
+          ...data,
+          category: (data.category ?? 'unknown') as ShoppingCategory,
+          oneShot: data.oneShot === true,
+        } as ShoppingListItem
       }))
       setLoading(false)
     })
@@ -79,6 +86,7 @@ export default function ShoppingPage() {
         addedBy: firebaseUser.uid,
         checked: false,
         category: directCategory,
+        oneShot: oneShotAdd,
       })
     } catch {
       setNewItemName(name)
@@ -89,18 +97,22 @@ export default function ShoppingPage() {
   const handleToggle = async (item: ShoppingListItem) => {
     if (!household?.id) return
     if (item.itemId && !/^[a-zA-Z0-9_-]{1,128}$/.test(item.itemId)) return
+    const hid = household.id
     try {
       if (!item.checked) {
-        if (item.itemId) {
-          await updateDoc(doc(db, 'households', household.id, 'items', item.itemId), {
-            status: '○',
-            updatedAt: serverTimestamp(),
+        if (item.itemId && !item.oneShot) {
+          await runTransaction(db, async (transaction) => {
+            const shoppingRef = doc(db, 'households', hid, 'shoppingList', item.id)
+            const itemRef = doc(db, 'households', hid, 'items', item.itemId!)
+            transaction.update(shoppingRef, { checked: true })
+            transaction.update(itemRef, { status: '○', updatedAt: serverTimestamp() })
           })
           showToast(`「${item.name}」の在庫を「十分あり」に更新しました`)
+        } else {
+          await updateDoc(doc(db, 'households', hid, 'shoppingList', item.id), { checked: true })
         }
-        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), { checked: true })
       } else {
-        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), { checked: false })
+        await updateDoc(doc(db, 'households', hid, 'shoppingList', item.id), { checked: false })
       }
     } catch {
       showToast('更新に失敗しました')
@@ -129,10 +141,20 @@ export default function ShoppingPage() {
     }
   }
 
+  const handleDoneForNow = async () => {
+    const uncheckedCount = items.filter(i => !i.checked).length
+    if (uncheckedCount > 0) {
+      const ok = window.confirm(`まだ${uncheckedCount}件未購入です。今日はここまでにしますか？`)
+      if (!ok) return
+    }
+    await handleClearChecked()
+  }
+
   const filteredItems = filter === 'all' ? items : items.filter(i => i.category === filter)
   const unchecked = filteredItems.filter((i) => !i.checked)
   const checked   = filteredItems.filter((i) => i.checked)
   const allDone   = items.length > 0 && items.every((i) => i.checked)
+  const anyChecked = items.some(i => i.checked)
 
   const allUnchecked   = items.filter(i => !i.checked).length
   const foodUnchecked  = items.filter(i => !i.checked && i.category === 'food').length
@@ -183,7 +205,7 @@ export default function ShoppingPage() {
             <Plus size={16} weight="bold" />
           </button>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setDirectCategory('food')}
             className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
@@ -205,6 +227,17 @@ export default function ShoppingPage() {
           >
             <Package size={11} weight="fill" />
             日用品
+          </button>
+          <button
+            onClick={() => setOneShotAdd(!oneShotAdd)}
+            className={`ml-auto flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+              oneShotAdd
+                ? 'bg-amber-400 text-white'
+                : 'bg-stone-100 text-stone-400 hover:bg-stone-200'
+            }`}
+          >
+            <Lightning size={11} weight="fill" />
+            単発
           </button>
         </div>
       </div>
@@ -276,6 +309,17 @@ export default function ShoppingPage() {
                 クリア
               </button>
             </div>
+          )}
+
+          {/* 今日はここまでボタン */}
+          {!allDone && anyChecked && (
+            <button
+              onClick={handleDoneForNow}
+              className="w-full flex items-center justify-center gap-2 py-3 mb-3 bg-stone-100 hover:bg-stone-200 text-stone-500 font-semibold text-sm rounded-2xl transition-colors"
+            >
+              <Flag size={15} weight="bold" />
+              今日はここまで
+            </button>
           )}
 
           {/* フィルター後が空 */}
@@ -353,16 +397,24 @@ function ShoppingItem({
         {checked && <Check size={16} weight="bold" />}
       </button>
       <div className="flex-1 min-w-0">
-        <span className={`font-medium text-stone-900 ${checked ? 'line-through text-stone-400' : ''}`}>
-          {item.name}
-        </span>
-        {showCategory && item.category !== 'unknown' && (
-          <span className={`ml-2 text-xs font-medium ${
-            item.category === 'food' ? 'text-forest-500' : 'text-amber-500'
-          }`}>
-            {item.category === 'food' ? '食品' : '日用品'}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`font-medium text-stone-900 ${checked ? 'line-through text-stone-400' : ''}`}>
+            {item.name}
           </span>
-        )}
+          {item.oneShot && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-full">
+              <Lightning size={9} weight="fill" />
+              単発
+            </span>
+          )}
+          {showCategory && item.category !== 'unknown' && (
+            <span className={`text-xs font-medium ${
+              item.category === 'food' ? 'text-forest-500' : 'text-amber-500'
+            }`}>
+              {item.category === 'food' ? '食品' : '日用品'}
+            </span>
+          )}
+        </div>
       </div>
       <button
         onClick={() => onDelete(item)}

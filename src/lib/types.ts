@@ -31,6 +31,7 @@ export interface ShoppingListItem {
   addedBy: string
   checked: boolean
   category: ShoppingCategory
+  oneShot?: boolean
 }
 
 export interface Household {

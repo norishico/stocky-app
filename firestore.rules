@@ -75,7 +75,8 @@ service cloud.firestore {
             && request.resource.data.checked is bool
             && (request.resource.data.itemId == null || request.resource.data.itemId is string)
             && request.resource.data.addedBy == request.auth.uid
-            && request.resource.data.category in ['food', 'goods', 'unknown'];
+            && request.resource.data.category in ['food', 'goods', 'unknown']
+            && (!('oneShot' in request.resource.data) || request.resource.data.oneShot is bool);
         }
 
         allow read: if isMemberOfHousehold();

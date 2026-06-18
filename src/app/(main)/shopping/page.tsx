@@ -27,7 +27,6 @@ export default function ShoppingPage() {
   const [loading, setLoading] = useState(true)
   const [newItemName, setNewItemName] = useState('')
   const [directCategory, setDirectCategory] = useState<'food' | 'goods'>('food')
-  const [oneShotAdd, setOneShotAdd] = useState(false)
   const [filter, setFilter] = useState<FilterType>('all')
   const [toast, setToast] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -86,7 +85,7 @@ export default function ShoppingPage() {
         addedBy: firebaseUser.uid,
         checked: false,
         category: directCategory,
-        oneShot: oneShotAdd,
+        oneShot: false,
       })
     } catch {
       setNewItemName(name)
@@ -138,6 +137,17 @@ export default function ShoppingPage() {
       )
     } catch {
       showToast('クリアに失敗しました')
+    }
+  }
+
+  const handleToggleOneShot = async (item: ShoppingListItem) => {
+    if (!household?.id) return
+    try {
+      await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
+        oneShot: !item.oneShot,
+      })
+    } catch {
+      showToast('更新に失敗しました')
     }
   }
 
@@ -227,17 +237,6 @@ export default function ShoppingPage() {
           >
             <Package size={11} weight="fill" />
             日用品
-          </button>
-          <button
-            onClick={() => setOneShotAdd(!oneShotAdd)}
-            className={`ml-auto flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-              oneShotAdd
-                ? 'bg-amber-400 text-white'
-                : 'bg-stone-100 text-stone-400 hover:bg-stone-200'
-            }`}
-          >
-            <Lightning size={11} weight="fill" />
-            単発
           </button>
         </div>
       </div>
@@ -334,6 +333,7 @@ export default function ShoppingPage() {
                 item={item}
                 onCheck={handleToggle}
                 onDelete={handleDelete}
+                onToggleOneShot={handleToggleOneShot}
                 showCategory={filter === 'all'}
               />
             ))}
@@ -374,12 +374,14 @@ function ShoppingItem({
   item,
   onCheck,
   onDelete,
+  onToggleOneShot,
   checked = false,
   showCategory = false,
 }: {
   item: ShoppingListItem
   onCheck: (item: ShoppingListItem) => void
   onDelete: (item: ShoppingListItem) => void
+  onToggleOneShot?: (item: ShoppingListItem) => void
   checked?: boolean
   showCategory?: boolean
 }) {
@@ -416,6 +418,19 @@ function ShoppingItem({
           )}
         </div>
       </div>
+      {!checked && onToggleOneShot && (
+        <button
+          onClick={() => onToggleOneShot(item)}
+          className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+            item.oneShot
+              ? 'text-amber-400 bg-amber-50'
+              : 'text-stone-200 hover:text-amber-300 hover:bg-amber-50'
+          }`}
+          aria-label={item.oneShot ? '在庫に反映する' : '在庫に反映しない（単発）'}
+        >
+          <Lightning size={15} weight="fill" />
+        </button>
+      )}
       <button
         onClick={() => onDelete(item)}
         className="flex-shrink-0 w-11 h-11 flex items-center justify-center text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"

@@ -20,6 +20,8 @@ export interface Item {
   storageLocation?: StorageLocation
 }
 
+export type ShoppingCategory = 'food' | 'goods' | 'unknown'
+
 export interface ShoppingListItem {
   id: string
   itemId: string | null
@@ -28,6 +30,7 @@ export interface ShoppingListItem {
   addedAt: Date
   addedBy: string
   checked: boolean
+  category: ShoppingCategory
 }
 
 export interface Household {

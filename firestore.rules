@@ -74,7 +74,8 @@ service cloud.firestore {
             && request.resource.data.name.size() <= 100
             && request.resource.data.checked is bool
             && (request.resource.data.itemId == null || request.resource.data.itemId is string)
-            && request.resource.data.addedBy == request.auth.uid;
+            && request.resource.data.addedBy == request.auth.uid
+            && request.resource.data.category in ['food', 'goods', 'unknown'];
         }
 
         allow read: if isMemberOfHousehold();

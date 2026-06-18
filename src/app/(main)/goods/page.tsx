@@ -47,6 +47,7 @@ export default function GoodsPage() {
         addedAt: serverTimestamp(),
         addedBy: firebaseUser.uid,
         checked: false,
+        category: item.category,
       })
       if (toastTimer.current) clearTimeout(toastTimer.current)
       setToast(`「${item.name}」を買い物リストに追加しました`)

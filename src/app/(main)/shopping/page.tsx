@@ -14,16 +14,26 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
-import { ShoppingListItem } from '@/lib/types'
-import { ShoppingCart, Check, X, CheckCircle, Plus, Trash } from '@phosphor-icons/react'
+import { ShoppingListItem, ShoppingCategory } from '@/lib/types'
+import { ShoppingCart, Check, X, CheckCircle, Plus, Trash, Leaf, Package } from '@phosphor-icons/react'
+
+type FilterType = 'all' | 'food' | 'goods'
+const FILTER_KEY = 'stocky_shopping_filter'
 
 export default function ShoppingPage() {
   const { household, firebaseUser } = useAuth()
   const [items, setItems] = useState<ShoppingListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [newItemName, setNewItemName] = useState('')
+  const [directCategory, setDirectCategory] = useState<'food' | 'goods'>('food')
+  const [filter, setFilter] = useState<FilterType>('all')
   const [toast, setToast] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem(FILTER_KEY)
+    if (saved === 'food' || saved === 'goods') setFilter(saved)
+  }, [])
 
   useEffect(() => {
     return () => { if (toastTimer.current) clearTimeout(toastTimer.current) }
@@ -36,11 +46,25 @@ export default function ShoppingPage() {
       orderBy('addedAt', 'asc'),
     )
     const unsub = onSnapshot(q, (snap) => {
-      setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ShoppingListItem)))
+      setItems(snap.docs.map((d) => {
+        const data = d.data()
+        return { id: d.id, ...data, category: (data.category ?? 'unknown') as ShoppingCategory } as ShoppingListItem
+      }))
       setLoading(false)
     })
     return () => unsub()
   }, [household?.id])
+
+  const changeFilter = (f: FilterType) => {
+    setFilter(f)
+    localStorage.setItem(FILTER_KEY, f)
+  }
+
+  const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast(msg)
+    toastTimer.current = setTimeout(() => setToast(''), 2500)
+  }
 
   const handleAddDirect = async () => {
     if (!household?.id || !firebaseUser || !newItemName.trim()) return
@@ -54,17 +78,12 @@ export default function ShoppingPage() {
         addedAt: serverTimestamp(),
         addedBy: firebaseUser.uid,
         checked: false,
+        category: directCategory,
       })
     } catch {
       setNewItemName(name)
       showToast('追加に失敗しました')
     }
-  }
-
-  const showToast = (msg: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    setToast(msg)
-    toastTimer.current = setTimeout(() => setToast(''), 2500)
   }
 
   const handleToggle = async (item: ShoppingListItem) => {
@@ -79,13 +98,9 @@ export default function ShoppingPage() {
           })
           showToast(`「${item.name}」の在庫を「十分あり」に更新しました`)
         }
-        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
-          checked: true,
-        })
+        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), { checked: true })
       } else {
-        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), {
-          checked: false,
-        })
+        await updateDoc(doc(db, 'households', household.id, 'shoppingList', item.id), { checked: false })
       }
     } catch {
       showToast('更新に失敗しました')
@@ -105,16 +120,29 @@ export default function ShoppingPage() {
     if (!household?.id) return
     try {
       await Promise.all(
-        checked.map((item) => deleteDoc(doc(db, 'households', household.id, 'shoppingList', item.id)))
+        items.filter(i => i.checked).map((item) =>
+          deleteDoc(doc(db, 'households', household.id, 'shoppingList', item.id))
+        )
       )
     } catch {
       showToast('クリアに失敗しました')
     }
   }
 
-  const unchecked = items.filter((i) => !i.checked)
-  const checked   = items.filter((i) => i.checked)
-  const allDone   = items.length > 0 && unchecked.length === 0
+  const filteredItems = filter === 'all' ? items : items.filter(i => i.category === filter)
+  const unchecked = filteredItems.filter((i) => !i.checked)
+  const checked   = filteredItems.filter((i) => i.checked)
+  const allDone   = items.length > 0 && items.every((i) => i.checked)
+
+  const allUnchecked   = items.filter(i => !i.checked).length
+  const foodUnchecked  = items.filter(i => !i.checked && i.category === 'food').length
+  const goodsUnchecked = items.filter(i => !i.checked && i.category === 'goods').length
+
+  const tabs: [FilterType, string, number][] = [
+    ['all', '全部', allUnchecked],
+    ['food', '食品', foodUnchecked],
+    ['goods', '日用品', goodsUnchecked],
+  ]
 
   return (
     <div className="px-4 pt-4">
@@ -126,6 +154,7 @@ export default function ShoppingPage() {
           {toast}
         </div>
       </div>
+
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-stone-900 flex items-center gap-2">
           <ShoppingCart size={22} weight="fill" className="text-forest-500" />
@@ -135,24 +164,72 @@ export default function ShoppingPage() {
       </div>
 
       {/* 直接追加フォーム */}
-      <div className="bg-white rounded-2xl shadow-sm p-3 mb-4 flex items-center gap-2">
-        <input
-          type="text"
-          value={newItemName}
-          onChange={(e) => setNewItemName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleAddDirect() }}
-          placeholder="アイテムを入力して追加…"
-          className="flex-1 text-base focus:outline-none bg-transparent placeholder:text-stone-300"
-        />
-        <button
-          onClick={handleAddDirect}
-          disabled={!newItemName.trim()}
-          className="w-9 h-9 flex-shrink-0 bg-forest-500 disabled:bg-stone-200 text-white rounded-xl flex items-center justify-center transition-colors"
-          aria-label="追加"
-        >
-          <Plus size={16} weight="bold" />
-        </button>
+      <div className="bg-white rounded-2xl shadow-sm p-3 mb-4 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={newItemName}
+            onChange={(e) => setNewItemName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddDirect() }}
+            placeholder="アイテムを入力して追加…"
+            className="flex-1 text-base focus:outline-none bg-transparent placeholder:text-stone-300"
+          />
+          <button
+            onClick={handleAddDirect}
+            disabled={!newItemName.trim()}
+            className="w-9 h-9 flex-shrink-0 bg-forest-500 disabled:bg-stone-200 text-white rounded-xl flex items-center justify-center transition-colors"
+            aria-label="追加"
+          >
+            <Plus size={16} weight="bold" />
+          </button>
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => setDirectCategory('food')}
+            className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+              directCategory === 'food'
+                ? 'bg-forest-500 text-white'
+                : 'bg-stone-100 text-stone-400 hover:bg-stone-200'
+            }`}
+          >
+            <Leaf size={11} weight="fill" />
+            食品
+          </button>
+          <button
+            onClick={() => setDirectCategory('goods')}
+            className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+              directCategory === 'goods'
+                ? 'bg-forest-500 text-white'
+                : 'bg-stone-100 text-stone-400 hover:bg-stone-200'
+            }`}
+          >
+            <Package size={11} weight="fill" />
+            日用品
+          </button>
+        </div>
       </div>
+
+      {/* カテゴリタブ */}
+      {!loading && items.length > 0 && (
+        <div className="flex gap-1 mb-4 bg-stone-100 p-1 rounded-2xl">
+          {tabs.map(([key, label, count]) => (
+            <button
+              key={key}
+              onClick={() => changeFilter(key)}
+              className={`flex-1 text-xs font-semibold py-2 rounded-xl transition-colors ${
+                filter === key
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              {label}
+              {count > 0 && (
+                <span className={`ml-1 ${filter === key ? 'text-forest-500' : ''}`}>{count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -168,21 +245,23 @@ export default function ShoppingPage() {
         </div>
       ) : (
         <>
-          {/* 進捗バー */}
+          {/* 進捗バー（全アイテムベース） */}
           <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-semibold text-stone-700">進捗</span>
-              <span className="text-sm font-medium text-stone-400">{checked.length} / {items.length}</span>
+              <span className="text-sm font-medium text-stone-400">
+                {items.filter(i => i.checked).length} / {items.length}
+              </span>
             </div>
             <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-forest-500 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${(checked.length / items.length) * 100}%` }}
+                style={{ width: `${(items.filter(i => i.checked).length / items.length) * 100}%` }}
               />
             </div>
           </div>
 
-          {/* 全完了バナー（アイテムは下に残す） */}
+          {/* 全完了バナー */}
           {allDone && (
             <div className="flex items-center justify-between bg-forest-50 border border-forest-200 rounded-2xl px-4 py-3 mb-3">
               <div className="flex items-center gap-2">
@@ -199,9 +278,20 @@ export default function ShoppingPage() {
             </div>
           )}
 
+          {/* フィルター後が空 */}
+          {!allDone && unchecked.length === 0 && checked.length === 0 && (
+            <p className="text-center py-10 text-sm text-stone-400">このカテゴリのアイテムはありません</p>
+          )}
+
           <div className="space-y-2.5">
             {unchecked.map((item) => (
-              <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} />
+              <ShoppingItem
+                key={item.id}
+                item={item}
+                onCheck={handleToggle}
+                onDelete={handleDelete}
+                showCategory={filter === 'all'}
+              />
             ))}
             {checked.length > 0 && (
               <>
@@ -218,7 +308,14 @@ export default function ShoppingPage() {
                   )}
                 </div>
                 {checked.map((item) => (
-                  <ShoppingItem key={item.id} item={item} onCheck={handleToggle} onDelete={handleDelete} checked />
+                  <ShoppingItem
+                    key={item.id}
+                    item={item}
+                    onCheck={handleToggle}
+                    onDelete={handleDelete}
+                    checked
+                    showCategory={filter === 'all'}
+                  />
                 ))}
               </>
             )}
@@ -234,11 +331,13 @@ function ShoppingItem({
   onCheck,
   onDelete,
   checked = false,
+  showCategory = false,
 }: {
   item: ShoppingListItem
   onCheck: (item: ShoppingListItem) => void
   onDelete: (item: ShoppingListItem) => void
   checked?: boolean
+  showCategory?: boolean
 }) {
   return (
     <div className={`bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 transition-opacity ${checked ? 'opacity-50' : ''}`}>
@@ -253,9 +352,18 @@ function ShoppingItem({
       >
         {checked && <Check size={16} weight="bold" />}
       </button>
-      <span className={`flex-1 font-medium text-stone-900 ${checked ? 'line-through text-stone-400' : ''}`}>
-        {item.name}
-      </span>
+      <div className="flex-1 min-w-0">
+        <span className={`font-medium text-stone-900 ${checked ? 'line-through text-stone-400' : ''}`}>
+          {item.name}
+        </span>
+        {showCategory && item.category !== 'unknown' && (
+          <span className={`ml-2 text-xs font-medium ${
+            item.category === 'food' ? 'text-forest-500' : 'text-amber-500'
+          }`}>
+            {item.category === 'food' ? '食品' : '日用品'}
+          </span>
+        )}
+      </div>
       <button
         onClick={() => onDelete(item)}
         className="flex-shrink-0 w-11 h-11 flex items-center justify-center text-stone-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"

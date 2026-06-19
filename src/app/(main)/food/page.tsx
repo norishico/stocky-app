@@ -30,7 +30,14 @@ export default function FoodPage() {
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs
         .map((d) => ({ id: d.id, ...d.data() } as Item))
-        .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name, 'ja'))
+        .sort((a, b) => {
+          const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+          if (statusDiff !== 0) return statusDiff
+          if (a.expiryDate && b.expiryDate) return a.expiryDate.localeCompare(b.expiryDate)
+          if (a.expiryDate) return -1
+          if (b.expiryDate) return 1
+          return a.name.localeCompare(b.name, 'ja')
+        })
       setItems(data)
       setLoading(false)
     })
